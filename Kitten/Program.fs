@@ -299,16 +299,19 @@ let showFormWithImage (commandLineParser:OptoParser) image =
         form1.Controls.Add(pictureBox1)
         form1.Show()
         Application.Run(form1)
+let inline optionalUrlDecoding (commandLineParser:OptoParser) = if commandLineParser.switchArg "disable-url-decoding" then id else HttpUtility.UrlDecode
 let generateCodeFile (commandLineParser:OptoParser) edgesPoints longLinesPoints (destination_file_path:string) =
     printfn "Code generating..."
     let code_generate_pattern_url_encoded = commandLineParser.parameterizedArg "code-generate-pattern"
     if code_generate_pattern_url_encoded.IsNone then
         errorf "Use command line option /code-generate-pattern \"url encoded text\" for write pattern for code generation."
-    let code_generate_pattern = HttpUtility.UrlDecode code_generate_pattern_url_encoded.Value
+    let optionalUrlDecoding = optionalUrlDecoding commandLineParser
+    let code_generate_pattern = optionalUrlDecoding code_generate_pattern_url_encoded.Value
     let pointsSource = if Option.isNone longLinesPoints then edgesPoints else Option.get longLinesPoints
     let inline readOptionWithDefault n = readOptionWithDefault commandLineParser n
-    let prologue = HttpUtility.UrlDecode <| readOptionWithDefault "prologue" "" tryParseIdentity
-    let epilogue = HttpUtility.UrlDecode <| readOptionWithDefault "epilogue" "" tryParseIdentity
+    let prologue = optionalUrlDecoding <| readOptionWithDefault "prologue" "" tryParseIdentity
+    let epilogue = optionalUrlDecoding <| readOptionWithDefault "epilogue" "" tryParseIdentity
+    let code_generate_pattern_joint = optionalUrlDecoding <| readOptionWithDefault "code-generate-pattern-joint" "" tryParseIdentity
     let item_number_multiplier = readOptionWithDefault "item-number-multiplier" 1 Int32.TryParse
     let item_number_shift = readOptionWithDefault "item-number-shift" 0 Int32.TryParse
     let m11 = readOptionWithDefault "scale-x" 1.f Single.TryParse
@@ -326,10 +329,12 @@ let generateCodeFile (commandLineParser:OptoParser) edgesPoints longLinesPoints 
         use stream = new StreamWriter (destination_file_path)
         stream.Write prologue
         let _ = pointsSource |> List.mapi (fun i (x,y) -> 
+            if i>0 then 
+                stream.Write code_generate_pattern_joint
             let item_number = item_number_shift + i*item_number_multiplier
             let code_item = 
                 code_generate_pattern.Replace("$#{number}", string item_number).Replace("$#{x}", string x).Replace("$#{y}", string y)
-            stream.Write code_item
+            stream.Write code_item            
         )
         stream.Write epilogue
         stream.Flush()
@@ -340,7 +345,7 @@ let main argv =
     printfn "Started..."
     (*Console.InputEncoding <- System.Text.Encoding.UTF8
     Console.OutputEncoding <- System.Text.Encoding.UTF8*)
-    let commandLineParser = OptoParser(set["?";"disable-view-preprocessed-image";"disable-view-result";"disable-line-processing";"disable-view-silhouette-finding";"disable-view-silhouette-edges";"disable-view-silhouette-long-lines"],set["image-source";"save-preprocessed-image-to-file";"preprocess-image-border-value";"save-generated-code-to-file";"prologue";"epilogue";"code-generate-pattern";"item-number-multiplier";"item-number-shift";"scale-x";"matrix-m12";"matrix-m21";"scale-y";"shift-x";"shift-y";"line-quality"], argv)
+    let commandLineParser = OptoParser(set["?";"disable-view-preprocessed-image";"disable-view-result";"disable-line-processing";"disable-view-silhouette-finding";"disable-view-silhouette-edges";"disable-view-silhouette-long-lines";"disable-url-decoding"],set["image-source";"save-preprocessed-image-to-file";"preprocess-image-border-value";"save-generated-code-to-file";"prologue";"epilogue";"code-generate-pattern";"code-generate-pattern-joint";"item-number-multiplier";"item-number-shift";"scale-x";"matrix-m12";"matrix-m21";"scale-y";"shift-x";"shift-y";"line-quality"], argv)
     if commandLineParser.isEmptyCommandLine() then
         errorf "Program for code generation from silhouette on image.\n\
         Also program suitable for simple preprocess some image to white background and black silhouette image.\n\
@@ -357,6 +362,7 @@ let main argv =
         /disable-view-silhouette-long-lines\n\n\
         /disable-line-processing - disable recognizing long line primitives at image;\n\n\
         /line-quality value - long line primitives recognizing quality. Value measurement is points amount from line to edge. Default value is 3.0 (3,0 on some cultures);\n\n\
+        /disable-url-decoding - disable url decoding for prologue, epilogue, code-generate-pattern and other. Bug fix for some execution environment.\n\n\
         /image-source \"path_to_file.jpg\" - source image for preprocessing, recognizing and code generation.\n\n\
         /save-preprocessed-image-to-file \"path_to_file.jpg\" - silhouetted image save to file path_to_file. Can be used for correct silhouette;\n\n\
         /preprocess-image-border-value value - silhouette recognize border used for detect edges. Color is white when any color component of image more than value, otherwise color is black. Limits of border value from 0.0 to 1.0. Default value is 0.5. White color should be background and black color should be silhouette edge.\n\n\
@@ -364,6 +370,7 @@ let main argv =
         /prologue \"url encoded text\" - generated code prologue;\n\n\
         /epilogue \"url encoded text\" - generated code epilogue;\n\n\
         /code-generate-pattern \"url encoded text\" - generated code single item pattern.\n\
+        /code-generate-pattern-joint \"url encoded text\" - pattern for joint between adjacent single item patterns.\n\
         You can use e.g. http://meyerweb.com/eric/tools/dencoder/ for url encoding.\n\
         \tYou can use few substitution patterns at text of parameter code-generate-pattern before url encoding that text.\n\
         \tSubstitution patterns:\n\

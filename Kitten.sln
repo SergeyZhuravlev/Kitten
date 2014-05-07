@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Kitten", "Kitten\Kitten.fsproj", "{82EA09D0-127F-452A-A80A-E866AB459DFC}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Kitten", "Kitten\Kitten.fsproj", "{A3F1902E-631D-4ED3-A833-188C35A18D72}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -9,10 +9,10 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{82EA09D0-127F-452A-A80A-E866AB459DFC}.Debug|x86.ActiveCfg = Debug|x86
-		{82EA09D0-127F-452A-A80A-E866AB459DFC}.Debug|x86.Build.0 = Debug|x86
-		{82EA09D0-127F-452A-A80A-E866AB459DFC}.Release|x86.ActiveCfg = Release|x86
-		{82EA09D0-127F-452A-A80A-E866AB459DFC}.Release|x86.Build.0 = Release|x86
+		{A3F1902E-631D-4ED3-A833-188C35A18D72}.Debug|x86.ActiveCfg = Debug|x86
+		{A3F1902E-631D-4ED3-A833-188C35A18D72}.Debug|x86.Build.0 = Debug|x86
+		{A3F1902E-631D-4ED3-A833-188C35A18D72}.Release|x86.ActiveCfg = Release|x86
+		{A3F1902E-631D-4ED3-A833-188C35A18D72}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

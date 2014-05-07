@@ -5,7 +5,7 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{82ea09d0-127f-452a-a80a-e866ab459dfc}</ProjectGuid>
+    <ProjectGuid>{a3f1902e-631d-4ed3-a833-188c35a18d72}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Kitten</RootNamespace>
     <AssemblyName>Kitten</AssemblyName>
@@ -21,12 +21,9 @@
     <Tailcalls>false</Tailcalls>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <WarningLevel>4</WarningLevel>
+    <WarningLevel>3</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
     <DocumentationFile>bin\Debug\Kitten.XML</DocumentationFile>
-    <StartArguments>/image-source "Kitten.jpg"</StartArguments>
-    <StartWorkingDirectory>
-    </StartWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <DebugType>pdbonly</DebugType>
@@ -52,6 +49,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Web" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="WindowsBase" />
