@@ -109,7 +109,11 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
         let up = pattern.seeForward image
         let diagonal = pattern.seeDiagonal image
         let left = pattern.seeLeft image
+        //printf "%A : %A : %A \n" (pattern.pointXY()) (pattern.direction()) (up, diagonal, left)
         match up, diagonal, left with
+            |true, false, true
+            |true, false, false
+            |true, true, false
             |true, true, true -> pattern.rightRotate()
             |false, true, true -> Pattern(pattern, pattern.getDiagonalXY())
             |false, false, true -> Pattern(pattern, pattern.getLeftXY())
@@ -174,7 +178,7 @@ let pointAtLine (line:Line2DEquation) quality point =
 let atLine points (((p1x,p1y), (p2x,p2y)) as line) quality = 
     let line = Line2DEquation.FromPoints line
     if Option.isNone line then
-        assert(false)
+        //assert(false)
         List.forall (fun (px,py) -> isEq p1x px && isEq p1y py) points
     else
         List.forall (pointAtLine (Option.get line) quality) points

@@ -24,6 +24,9 @@
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
     <DocumentationFile>bin\Debug\Kitten.XML</DocumentationFile>
+    <StartArguments>/image-source "Kitten.jpg" /save-generated-code-to-file "Kitten.iso"  /scale-y -1,0  /item-number-multiplier 10 /item-number-shift 100 /prologue "%25%0A%3A100%20T2%20G90%20G94%0AN10%20S0.05%20M3%0AN20%20F50%0AN30%20G30XYZ%0A" /epilogue "N70000%20M5%0AN80000%20M30%0A" /code-generate-pattern "N%24%23%7Bnumber%7D%20X%24%23%7Bx%7D%20Y%24%23%7By%7D%0A"</StartArguments>
+    <StartWorkingDirectory>
+    </StartWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <DebugType>pdbonly</DebugType>
