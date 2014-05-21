@@ -119,7 +119,7 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
             |false, false, true -> Pattern(pattern, pattern.getLeftXY())
             |false, false, false
             |false, true, false -> pattern.leftRotate()
-            | _ -> failwithf "Algorithm error. Image pattern recognize failed with unknown pattern: (%b, %b, %b)." up diagonal left
+            //| _ -> failwithf "Algorithm error. Image pattern recognize failed with unknown pattern: (%b, %b, %b)." up diagonal left
     let firstPattern = Pattern(firstPositionNearSilhouette, directionToSilhouette)
     assert (firstPattern.seeCurrent image)
     assert (not <| firstPattern.seeForward image)
@@ -178,7 +178,8 @@ let pointAtLine (line:Line2DEquation) quality point =
 let atLine points (((p1x,p1y), (p2x,p2y)) as line) quality = 
     let line = Line2DEquation.FromPoints line
     if Option.isNone line then
-        //assert(false)
+        //printf "%A" ((p1x,p1y), (p2x,p2y))
+        //assert false//Error at algorithm. It is can drop long thick thin lines.
         List.forall (fun (px,py) -> isEq p1x px && isEq p1y py) points
     else
         List.forall (pointAtLine (Option.get line) quality) points
@@ -187,6 +188,11 @@ let lastAndOther list =
     last, (Seq.toList list |> List.rev |> List.tail |> List.rev)
 let onLine quality firstPointAtLine points = 
     let last, other = lastAndOther points
+    (*if isEq (fst last) (fst firstPointAtLine) && isEq (snd last) (snd firstPointAtLine) then
+        printf "%A" <| Seq.length points
+        Seq.iter (printf "%A") points
+        printf "\n"
+        assert false*)
     atLine other (firstPointAtLine, last) quality
 let growGroups (l:_ seq) =
     Seq.init (Seq.length l + 1 ) (flip Seq.take l)
@@ -207,7 +213,11 @@ let pointsToLines quality points =
     let firstPoint = Seq.head points
     let otherPoints = Seq.skip 1 points
     let polyline = Seq.unfold (generateNextPointAtPolylineAndRestPoints quality) (firstPoint, otherPoints)
-    firstPoint::Seq.toList polyline
+    let resultWithAdjacentDuplicatePoints = firstPoint::Seq.toList polyline
+    List.rev <| List.fold (fun l ((px, py) as p) -> match l with
+                                                        | [] -> [p]
+                                                        | ((hx,hy)as h)::_ when isEq hx px && isEq hy py -> l
+                                                        | _ -> p::l  ) [] resultWithAdjacentDuplicatePoints
 let inline XYtoFloatXY (x,y) = float(x), float(y)
 let inline XYtoPoint (x,y) = Point (int x, int y)
 let inline XYtoPointF (x,y) = PointF (float32 x, float32 y)
@@ -278,8 +288,6 @@ type OptoParser private(switchArgs, parameterizedArgs) =
             printf "Some command line options has no affect: "
             List.iter (printf "%s ") ua
 let floatToColorByteComponent v = byte <| (min (max v 0.) 1.) * 255.
-let inline mapM_ f s = ignore <| Option.map f s
-//let fmapM_  = flip mapM_
 let imageIsSmall (image: _[,]) = 
     image.GetLength(1) < 6 || image.GetLength(0) < 6
 
@@ -441,7 +449,7 @@ let main argv =
             let line_quality = readOptionWithDefault "line-quality" 3. Double.TryParse
             pointsToLines line_quality edgesPoints |> Some 
     let longLinesPoints_Point = Option.map (List.map XYtoPoint >> List.toArray) longLinesPoints
-    mapM_ (generateCodeFile commandLineParser edgesPoints longLinesPoints) (commandLineParser.parameterizedArg "save-generated-code-to-file")
+    Option.iter (generateCodeFile commandLineParser edgesPoints longLinesPoints) (commandLineParser.parameterizedArg "save-generated-code-to-file")
     if not <| commandLineParser.switchArg "disable-view-result" then 
         printfn "Drawing..."
         if not <| commandLineParser.switchArg "disable-view-silhouette-finding" then 
@@ -449,7 +457,7 @@ let main argv =
         if not <| commandLineParser.switchArg "disable-view-silhouette-edges" then 
             drawPolyLineAtSystemImage image_for_view Color.Green edgesPoints_Point
         if not <| commandLineParser.switchArg "disable-view-silhouette-long-lines" then 
-            mapM_ (drawPolyLineAtSystemImage image_for_view Color.Red) longLinesPoints_Point
+            Option.iter (drawPolyLineAtSystemImage image_for_view Color.Red) longLinesPoints_Point
     commandLineParser.checkUnusedArguments()
     showFormWithImage image_for_view
     printfn "Successfull exit."
