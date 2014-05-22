@@ -18,7 +18,18 @@ let inline applyNTimes f n s =
     let fs = Seq.init n <| const1 f
     Seq.fold (>>) id fs s
 //let inline curry2 f t = f (fst t) (snd t)
+let inline uncurry2 f l r  = f (l,r)
 let inline flip f x y = f y x
+let inline isEqp v1 v2 p = abs(v1-v2) <= p
+let inline isEq v1 v2 = isEqp v1 v2 0.00000001
+//let inline isNEq v1 v2 = not <| isEq v1 v2
+let inline isEqPtf (x,y) (x2,y2) = isEq x x2 && isEq y y2
+let inline list_equality_adjacent_items_remove isEq items = List.fold (fun l i -> match l with
+                                                                                    | [] -> [i]
+                                                                                    | i_::_ when isEq i_ i -> l
+                                                                                    | _::_ -> i::l  ) [] items
+                                                            |> List.rev
+
 let inline errorf format = Printf.ksprintf (fun s -> Console.WriteLine(s);Environment.Exit(1);Unchecked.defaultof<_>) format
 let imageView (image:_[,]) point = let x,y = point in image.[y,x]
 let imageViewf image getpoint = imageView image <| getpoint()
@@ -109,6 +120,10 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
         let up = pattern.seeForward image
         let diagonal = pattern.seeDiagonal image
         let left = pattern.seeLeft image
+        (*в патернах нужно выпилить дупликаты точек, тк некоторые точки лишь при повороте получаются
+        также нужно порправить отбрасывание длинных линий (при смене направления) следует решить, что это перед этим была последняя точка в линии
+        в ообще я не понял как так получилось что линии пересекаются на соседних контурах на силуэте толщиной в линию
+        выпилить бы проблему с url encoding, либо батник поменять на запись в переменную окружения, либо читать из файла. лучше второе*)
         //printf "%A : %A : %A \n" (pattern.pointXY()) (pattern.direction()) (up, diagonal, left)
         match up, diagonal, left with
             |true, false, true
@@ -130,14 +145,12 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
         |pattern -> let nextPatternValue = nextPattern pattern in Some (nextPatternValue.pointXY(), nextPatternValue)
     ) |> 
     Seq.toList |> 
-    (fun ps -> firstPositionNearSilhouette::ps)
+    uncurry2 List.Cons firstPositionNearSilhouette |>
+    list_equality_adjacent_items_remove (=)
 let getSilhouettePointsListForBorderedImage (sourceImage:bool[,]) positionAtNearLeftOfSilhuette =
     assert(replaceBorder true sourceImage = sourceImage)
     //let positionAtNearLeftOfSilhuette = findXYWithFirstWhiteBeforeBlack image
     makeSilhuettePointsList sourceImage Direction.D10 positionAtNearLeftOfSilhuette
-let inline isEqP v1 v2 p = abs(v1-v2) < p
-let inline isEq v1 v2 = isEqP v1 v2 0.00000001
-//let inline isNEq v1 v2 = not <| isEq v1 v2
 type Line2DEquation = 
     | LineEquation of (*k:*)float * (*b:*)float
     | Vertical of (*x:*)float
@@ -212,12 +225,10 @@ let generateNextPointAtPolylineAndRestPoints quality (firstPointAtLine, restPoin
 let pointsToLines quality points =
     let firstPoint = Seq.head points
     let otherPoints = Seq.skip 1 points
-    let polyline = Seq.unfold (generateNextPointAtPolylineAndRestPoints quality) (firstPoint, otherPoints)
-    let resultWithAdjacentDuplicatePoints = firstPoint::Seq.toList polyline
-    List.rev <| List.fold (fun l ((px, py) as p) -> match l with
-                                                        | [] -> [p]
-                                                        | ((hx,hy)as h)::_ when isEq hx px && isEq hy py -> l
-                                                        | _ -> p::l  ) [] resultWithAdjacentDuplicatePoints
+    Seq.unfold (generateNextPointAtPolylineAndRestPoints quality) (firstPoint, otherPoints) |>
+    Seq.toList |>
+    uncurry2 List.Cons firstPoint |>
+    list_equality_adjacent_items_remove isEqPtf
 let inline XYtoFloatXY (x,y) = float(x), float(y)
 let inline XYtoPoint (x,y) = Point (int x, int y)
 let inline XYtoPointF (x,y) = PointF (float32 x, float32 y)
@@ -340,7 +351,7 @@ let generateCodeFile (commandLineParser:OptoParser) edgesPoints longLinesPoints 
     try
         use stream = new StreamWriter (destination_file_path)
         stream.Write prologue
-        let _ = pointsSource |> List.mapi (fun i (x,y) -> 
+        pointsSource |> List.iteri (fun i (x,y) -> 
             if i>0 then 
                 stream.Write code_generate_pattern_joint
             let item_number = item_number_shift + i*item_number_multiplier
