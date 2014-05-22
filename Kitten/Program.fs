@@ -9,6 +9,9 @@ open System.Runtime.InteropServices
 open System.Windows.Forms
 open System.Drawing.Drawing2D
 open System.IO
+open System.Runtime.Serialization
+open System.Runtime.Serialization.Json
+open System.ComponentModel
 type Vector = System.Windows.Vector
 type HttpUtility = System.Web.HttpUtility
 
@@ -363,11 +366,46 @@ let generateCodeFile (commandLineParser:OptoParser) edgesPoints longLinesPoints 
         stream.Flush()
     with _ -> errorf "Can't write generated code to file \"%s\"." destination_file_path
     ()
+[<DataContract>]
+type CodeGeneratePattern = 
+    struct
+        [<DataMember()>]
+        [<DefaultValueAttribute("")>] 
+        val mutable prologue: string;
+        [<DataMember()>]
+        val mutable code_generate_pattern: string;
+        [<DataMember()>]
+        [<DefaultValueAttribute("")>] 
+        val mutable code_generate_pattern_joint: string;
+        [<DataMember()>]
+        [<DefaultValueAttribute("")>] 
+        val mutable epilogue: string;
+    end
+let ReadObject<'JsonData when 'JsonData: struct> filename =
+    use fs = new FileStream(filename, FileMode.OpenOrCreate)
+    let serializer = DataContractSerializer(typeof<'JsonData>)
+    (serializer.ReadObject fs):?'JsonData
 [<EntryPoint>]
 let main argv = 
     printfn "Started..."
-    (*Console.InputEncoding <- System.Text.Encoding.UTF8
-    Console.OutputEncoding <- System.Text.Encoding.UTF8*)
+    let _ = ReadObject<CodeGeneratePattern> "code_generate_pattern.josn"
+    (*let mutable p = new CodeGeneratePattern()
+    p.code_generate_pattern <- "cgp"
+    p.code_generate_pattern_joint <- "cgpj"
+    p.prologue <- "p"
+    p.epilogue <- "e"
+    do
+        use stream1 = new FileStream("code_generate_pattern.josn", FileMode.CreateNew)
+        let ser = DataContractJsonSerializer(typeof<CodeGeneratePattern>)
+        ser.WriteObject(stream1, p)*)
+    (*let st = File.ReadAllText "code_generate_pattern.json"
+    let jsonArray = JsonArray.Parse st
+    for item in jsonArray do
+        JsonObject ob = JsonObject item
+        for t in ob.Values do
+            JsonObject oo = JsonObject t
+            for x in oo do
+                textBox1.AppendText(x.Key + " : " + x.Value + "\n");*)
     let commandLineParser = OptoParser(set["?";"disable-view-preprocessed-image";"disable-view-result";"disable-line-processing";"disable-view-silhouette-finding";"disable-view-silhouette-edges";"disable-view-silhouette-long-lines";"disable-url-decoding"],set["image-source";"save-preprocessed-image-to-file";"preprocess-image-border-value";"save-generated-code-to-file";"prologue";"epilogue";"code-generate-pattern";"code-generate-pattern-joint";"item-number-multiplier";"item-number-shift";"scale-x";"matrix-m12";"matrix-m21";"scale-y";"shift-x";"shift-y";"line-quality"], argv)
     if commandLineParser.isEmptyCommandLine() then
         errorf "Program for code generation from silhouette on image.\n\
