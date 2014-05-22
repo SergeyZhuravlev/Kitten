@@ -31,6 +31,9 @@ let inline list_equality_adjacent_items_remove isEq items = List.fold (fun l i -
                                                             |> List.rev
 
 let inline errorf format = Printf.ksprintf (fun s -> Console.WriteLine(s);Environment.Exit(1);Unchecked.defaultof<_>) format
+let inline callback_and_return f result = 
+    ignore f
+    result
 let imageView (image:_[,]) point = let x,y = point in image.[y,x]
 let imageViewf image getpoint = imageView image <| getpoint()
 let loadImage name = 
@@ -120,10 +123,6 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
         let up = pattern.seeForward image
         let diagonal = pattern.seeDiagonal image
         let left = pattern.seeLeft image
-        (*в патернах нужно выпилить дупликаты точек, тк некоторые точки лишь при повороте получаются
-        также нужно порправить отбрасывание длинных линий (при смене направления) следует решить, что это перед этим была последняя точка в линии
-        в ообще я не понял как так получилось что линии пересекаются на соседних контурах на силуэте толщиной в линию
-        выпилить бы проблему с url encoding, либо батник поменять на запись в переменную окружения, либо читать из файла. лучше второе*)
         //printf "%A : %A : %A \n" (pattern.pointXY()) (pattern.direction()) (up, diagonal, left)
         match up, diagonal, left with
             |true, false, true
@@ -134,7 +133,6 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
             |false, false, true -> Pattern(pattern, pattern.getLeftXY())
             |false, false, false
             |false, true, false -> pattern.leftRotate()
-            //| _ -> failwithf "Algorithm error. Image pattern recognize failed with unknown pattern: (%b, %b, %b)." up diagonal left
     let firstPattern = Pattern(firstPositionNearSilhouette, directionToSilhouette)
     assert (firstPattern.seeCurrent image)
     assert (not <| firstPattern.seeForward image)
@@ -149,7 +147,6 @@ let makeSilhuettePointsList image directionToSilhouette (firstPositionNearSilhou
     list_equality_adjacent_items_remove (=)
 let getSilhouettePointsListForBorderedImage (sourceImage:bool[,]) positionAtNearLeftOfSilhuette =
     assert(replaceBorder true sourceImage = sourceImage)
-    //let positionAtNearLeftOfSilhuette = findXYWithFirstWhiteBeforeBlack image
     makeSilhuettePointsList sourceImage Direction.D10 positionAtNearLeftOfSilhuette
 type Line2DEquation = 
     | LineEquation of (*k:*)float * (*b:*)float
@@ -213,19 +210,22 @@ let getNextLineAndRestPoints quality firstPointAtLine points =
     let pointsGroups = Seq.skip 1 <| growGroups points
     let onLinePointsGroups = Seq.takeWhile (onLine quality firstPointAtLine) pointsGroups
     let onLineBiggestPointsGroup = seqLast onLinePointsGroups |> Seq.toList
-    let restPoints = Seq.skip (List.length onLineBiggestPointsGroup) points
+    let lengthOfPointsOnLine = List.length onLineBiggestPointsGroup
+    let restPoints = Seq.skip lengthOfPointsOnLine points
     let endOfLine = seqLast onLineBiggestPointsGroup
-    endOfLine, restPoints
-let generateNextPointAtPolylineAndRestPoints quality (firstPointAtLine, restPoints) =
+    endOfLine, restPoints, lengthOfPointsOnLine
+let generateNextPointAtPolylineAndRestPoints progressViewer allPointsAmount quality (firstPointAtLine, restPoints, pointCounter) =
+    progressViewer pointCounter allPointsAmount
     match restPoints with
         | s when Seq.isEmpty s -> None
-        //| s when Seq.isEmpty <| Seq.skip 1 s -> let endOfLine = Seq.exactlyOne s in Some <| (endOfLine, ((0.,0.), Seq.empty))
-        | _ -> let endOfLine, restPoints_ = getNextLineAndRestPoints quality firstPointAtLine restPoints
-               Some <| (endOfLine, (endOfLine, restPoints_))
-let pointsToLines quality points =
+        //| s when Seq.isEmpty <| Seq.skip 1 s -> let endOfLine = Seq.exactlyOne s in Some <| (endOfLine, ((0.,0.), Seq.empty, pointCounter+1))
+        | _ -> let endOfLine, restPoints_, pointsOnLine = getNextLineAndRestPoints quality firstPointAtLine restPoints
+               Some <| (endOfLine, (endOfLine, restPoints_, pointCounter+pointsOnLine))
+let pointsToLines progressViewer quality (points:_ list) =
+    let pointsAmount = List.length points
     let firstPoint = Seq.head points
     let otherPoints = Seq.skip 1 points
-    Seq.unfold (generateNextPointAtPolylineAndRestPoints quality) (firstPoint, otherPoints) |>
+    Seq.unfold (generateNextPointAtPolylineAndRestPoints progressViewer pointsAmount quality) (firstPoint, otherPoints, 0) |>
     Seq.toList |>
     uncurry2 List.Cons firstPoint |>
     list_equality_adjacent_items_remove isEqPtf
@@ -377,6 +377,7 @@ let main argv =
         commandLineParser.checkUnusedArguments()
         errorf "Empty options on command line - about program;\n\n\
         /? - this help;\n\n\
+        /disable-progress-bar - disable progress view of image processing;\n\n\
         /disable-view-preprocessed-image - disable view image after silhouette preprocessing;\n\n\
         /disable-view-result - disable view marks on image after image preprocessing;\n\n\
         Also some marks on viewed image can be disabled individually:\n\
@@ -412,7 +413,7 @@ let main argv =
         \tAll point coordinates will multiply to matrix M before generate code. Matrix M is equal to:\n\
         \t[scale-x    matrix-m12 0.0]\n\
         \t[matrix-m21 scale-y    0.0]\n\
-        \t[shift-x    shift-y    1.0]"
+        \t[shift-x    shift-y    1.0]\n"
     let image_source_path = commandLineParser.parameterizedArg "image-source"
     if image_source_path.IsNone then
         errorf "Nothing to do. Use option \'/image-source \"path_to_file.jpg\"\' for specify source image for preprocessing, recognizing or code generation."
@@ -457,8 +458,19 @@ let main argv =
             None
         else
             printfn "Silhouette long lines detecting..."
+            let lastProgress = ref 0
+            let progressViewer = if commandLineParser.switchArg "disable-progress-bar" then
+                                        (fun _ _ -> ())
+                                    else
+                                        (fun processedPoints pointsAmount -> 
+                                            let currentProgress = int <| 100. * float processedPoints/float pointsAmount 
+                                            if !lastProgress<>currentProgress then 
+                                                lastProgress:=currentProgress
+                                                printf "\rProcessed: %i%%" currentProgress)
             let line_quality = readOptionWithDefault "line-quality" 3. Double.TryParse
-            pointsToLines line_quality edgesPoints |> Some 
+            pointsToLines progressViewer line_quality edgesPoints |> 
+            Some |>
+            callback_and_return (printf "\r                             \r")
     let longLinesPoints_Point = Option.map (List.map XYtoPoint >> List.toArray) longLinesPoints
     Option.iter (generateCodeFile commandLineParser edgesPoints longLinesPoints) (commandLineParser.parameterizedArg "save-generated-code-to-file")
     if not <| commandLineParser.switchArg "disable-view-result" then 
