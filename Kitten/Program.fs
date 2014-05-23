@@ -24,14 +24,17 @@ let inline uncurry2 f l r  = f (l,r)
 let inline flip f x y = f y x
 let inline isEqp v1 v2 p = abs(v1-v2) <= p
 let inline isEq v1 v2 = isEqp v1 v2 0.00000001
-//let inline isNEq v1 v2 = not <| isEq v1 v2
 let inline isEqPtf (x,y) (x2,y2) = isEq x x2 && isEq y y2
 let inline list_equality_adjacent_items_remove isEq items = List.fold (fun l i -> match l with
                                                                                     | [] -> [i]
                                                                                     | i_::_ when isEq i_ i -> l
                                                                                     | _::_ -> i::l  ) [] items
                                                             |> List.rev
-
+let inline for_all_pairs_at_seq predicate seq = 
+    if Seq.isEmpty seq then 
+        true 
+    else 
+        Seq.forall2 predicate seq (Seq.skip 1 seq)
 let inline errorf format = Printf.ksprintf (fun s -> Console.WriteLine(s);Environment.Exit(1);Unchecked.defaultof<_>) format
 let inline callback_and_return f result = 
     ignore f
@@ -87,10 +90,6 @@ let drawPolyLineAtSystemImage image (color:Color) (polyline:Point[]) =
     use g = Graphics.FromImage(image)
     use p = new Pen(color)
     g.DrawLines(p, polyline)
-(*let toRowColumnImage (image:_[,]) = 
-    [|for y in 0..image.GetUpperBound(0) -> 
-        [|for x in 0..image.GetUpperBound(1) -> 
-            image.[y,x]|]|]*)
 let replaceBorder borderColor (image:_[,]) =
     Array2D.mapi (fun y x c -> if x=0 || y=0 || x=image.GetUpperBound(1) || y=image.GetUpperBound(0) then borderColor else c) image
 let array2DIndicies (a:_[,]) = 
@@ -131,12 +130,6 @@ type Pattern (pointXY:Point_t, direction:Direction) =
     member this.getDiagonalXY() = direction.leftRotate.addToXY <| direction.addToXY pointXY
     member this.rightRotate() = Pattern(this, direction.rightRotate)
     member this.leftRotate() = Pattern(this, direction.leftRotate)
-    (*member this.pointInPattern (*xy*) = function
-        |p when p = this.pointXY() -> true
-        |p when p = this.getForwardXY() -> true
-        |p when p = this.getLeftXY() -> true
-        |p when p = this.getDiagonalXY() -> true
-        |_->false*)
     member this.seeDiagonal image = imageViewf image this.getDiagonalXY
     member this.seeForward image = imageViewf image this.getForwardXY
     member this.seeLeft image = imageViewf image this.getLeftXY
@@ -210,20 +203,36 @@ let pointAtLine (line:Line2DEquation) quality point =
         let perpendicularRadiusVector = intersection - Vector(fst point, snd point)
         let squaredDistanceBetweenLineAndPoint = perpendicularRadiusVector.LengthSquared
         squaredDistanceBetweenLineAndPoint<=(quality*quality)
-let atLine points (((p1x,p1y), (p2x,p2y)) as line) quality = 
+let squaredDistanceBetweenFirstPointAtLineAndAnotherPointProjection firstPointAtLine (line:Line2DEquation) anotherPoint =
+    let perpendicularToLineFromPoint = line.perpendicularFromPoint anotherPoint
+    let firstPointAtLine = Vector(fst firstPointAtLine, snd firstPointAtLine)
+    let radiusVectorFromAnotherPointToFirstPointAtLine = 
+        if Option.isNone perpendicularToLineFromPoint then
+            firstPointAtLine - Vector(fst anotherPoint, snd anotherPoint)
+        else
+            let projectionOfAnotherPointToLine = Option.get <| line.intersection (Option.get perpendicularToLineFromPoint)
+            firstPointAtLine - Vector(fst projectionOfAnotherPointToLine, snd projectionOfAnotherPointToLine)
+    radiusVectorFromAnotherPointToFirstPointAtLine.LengthSquared
+let atLine points (((p1x,p1y) as firstPointAtLine, (p2x,p2y)) as line) quality = 
     let line = Line2DEquation.FromPoints line
     if Option.isNone line then
-        //printf "%A" ((p1x,p1y), (p2x,p2y))
-        //assert false//Error at algorithm. It is can drop long thick thin lines.
-        List.forall (fun (px,py) -> isEq p1x px && isEq p1y py) points
+        //assert false
+        //List.forall (fun (px,py) -> isEq p1x px && isEq p1y py) points
+        false
     else
-        List.forall (pointAtLine (Option.get line) quality) points
-let lastAndOther list = 
-    let last = seqLast list
-    last, (Seq.toList list |> List.rev |> List.tail |> List.rev)
+        let line = line.Value
+        let allPointsOnLineDoesNotOverflowSuitableDistanceBetweenPointAndLine = List.forall (pointAtLine line quality) points
+        let distanceBetweenFirstPointAndEachNextPointProjectionOnLineIsIncreasing = 
+            Seq.map (squaredDistanceBetweenFirstPointAtLineAndAnotherPointProjection firstPointAtLine line) points |>
+            for_all_pairs_at_seq (<=)
+        let radiusVectorBetweenAdjacentPointsHaveNearlySameDirection = distanceBetweenFirstPointAndEachNextPointProjectionOnLineIsIncreasing
+        allPointsOnLineDoesNotOverflowSuitableDistanceBetweenPointAndLine && radiusVectorBetweenAdjacentPointsHaveNearlySameDirection
+let lastAndOther seq = 
+    let last = seqLast seq
+    last, (Seq.toList seq |> List.rev |> List.tail |> List.rev)
 let onLine quality firstPointAtLine points = 
     let last, other = lastAndOther points
-    (*if isEq (fst last) (fst firstPointAtLine) && isEq (snd last) (snd firstPointAtLine) then
+    (*if isEqPtf last firstPointAtLine then
         printf "%A" <| Seq.length points
         Seq.iter (printf "%A") points
         printf "\n"
@@ -327,8 +336,10 @@ let floatToColorByteComponent v = byte <| (min (max v 0.) 1.) * 255.
 let imageIsSmall (image: _[,]) = 
     image.GetLength(1) < 6 || image.GetLength(0) < 6
 
-//You MUST use expression (lazy expression) in ifFstThenSnd parameter lazyConstructed!!!
+
+//You MUST use expression (lazy expression) in lazyConstructed parameter at ifFstThenSnd !!!
 let inline ifFstThenSnd v (lazyConstructed:_ Lazy) = match v with (true, v) -> v | (false, _) -> lazyConstructed.Force()
+
 
 let inline tryParseIdentity v = (true, v)
 let inline readOptionWithDefault (commandLineParser:OptoParser) optionName defaultValue tryParse = 
