@@ -1,0 +1,6 @@
+{
+ "prologue":"generated_list = {\r\n",
+ "code_generate_pattern":"{$#{x}, $#{y}}",
+ "code_generate_pattern_joint":",\r\n",
+ "epilogue":"\r\n}\r\n"
+}

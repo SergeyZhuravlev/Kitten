@@ -1,0 +1,6 @@
+{
+ "prologue":"%\r\n:100 T2 G90 G94\r\nN10 S50 M3\r\nN20 F50\r\nN30 G30XYZ\r\n",
+ "code_generate_pattern":"N$#{number} X$#{x} Y$#{y}\r\n",
+ "code_generate_pattern_joint":"",
+ "epilogue":"N70000 M5\r\nN80000 M30"
+}
