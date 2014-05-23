@@ -13,7 +13,6 @@ open System.Runtime.Serialization
 open System.Runtime.Serialization.Json
 open System.ComponentModel
 type Vector = System.Windows.Vector
-type HttpUtility = System.Web.HttpUtility
 
 let inline id a = a 
 let inline const1 value _ = value
